@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Clock, Calendar, User, Flag, Filter, Check } from 'lucide-react';
+import { Plus, Clock, Calendar, User, Flag, Filter, Check, FileText, MessageSquare } from 'lucide-react';
 import MinimalistLogo from '../components/MinimalistLogo';
 import TaskInput from '../components/TaskInput';
+import MeetingMinutesParser from '../components/MeetingMinutesParser';
 import TaskList from '../components/TaskList';
 import TaskFilters from '../components/TaskFilters';
 import { Task, TaskFilters as FilterType } from '../types/Task';
 import { loadTasks, saveTasks } from '../utils/storage';
+import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showInput, setShowInput] = useState(false);
+  const [inputMode, setInputMode] = useState<'single' | 'meeting'>('single');
   const [filters, setFilters] = useState<FilterType>({
     search: '',
     priority: '',
@@ -17,6 +20,8 @@ const Index = () => {
     status: '',
     sortBy: 'dueDate'
   });
+  
+  const { toast } = useToast();
 
   useEffect(() => {
     const savedTasks = loadTasks();
@@ -28,6 +33,27 @@ const Index = () => {
     setTasks(newTasks);
     saveTasks(newTasks);
     setShowInput(false);
+    
+    toast({
+      title: "Task Added",
+      description: `"${task.title}" has been added to your tasks.`,
+      variant: "default",
+    });
+  };
+  
+  const handleAddMultipleTasks = (newTasks: Task[]) => {
+    if (newTasks.length === 0) return;
+    
+    const updatedTasks = [...tasks, ...newTasks];
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    setShowInput(false);
+    
+    toast({
+      title: "Tasks Added",
+      description: `${newTasks.length} tasks have been extracted and added.`,
+      variant: "default",
+    });
   };
 
   const handleUpdateTask = (updatedTask: Task) => {
@@ -106,11 +132,24 @@ const Index = () => {
               </div>
               
               <button
-                onClick={() => setShowInput(!showInput)}
-                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                onClick={() => {
+                  setShowInput(!showInput);
+                  if (!showInput) setInputMode('single');
+                }}
+                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 mr-2"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Task
+              </button>
+              <button
+                onClick={() => {
+                  setShowInput(!showInput);
+                  if (!showInput) setInputMode('meeting');
+                }}
+                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Meeting Minutes
               </button>
             </div>
           </div>
@@ -172,7 +211,38 @@ const Index = () => {
         {/* Task Input */}
         {showInput && (
           <div className="mb-8 animate-fade-in">
-            <TaskInput onAddTask={handleAddTask} onCancel={() => setShowInput(false)} />
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+              <div className="flex space-x-1">
+                <button
+                  onClick={() => setInputMode('single')}
+                  className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+                    inputMode === 'single' 
+                      ? 'bg-emerald-100 text-emerald-700 font-medium' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Single Task</span>
+                </button>
+                <button
+                  onClick={() => setInputMode('meeting')}
+                  className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+                    inputMode === 'meeting' 
+                      ? 'bg-purple-100 text-purple-700 font-medium' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Meeting Minutes</span>
+                </button>
+              </div>
+            </div>
+            
+            {inputMode === 'single' ? (
+              <TaskInput onAddTask={handleAddTask} onCancel={() => setShowInput(false)} />
+            ) : (
+              <MeetingMinutesParser onAddTasks={handleAddMultipleTasks} onCancel={() => setShowInput(false)} />
+            )}
           </div>
         )}
 

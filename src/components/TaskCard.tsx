@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Calendar, User, Flag, Clock, Edit, Trash2, Check } from 'lucide-react';
+import { Calendar, User, Flag, Clock, Edit, Trash2, Check, AlertCircle } from 'lucide-react';
 import { Task } from '../types/Task';
 import TaskEditModal from './TaskEditModal';
+import { motion } from 'framer-motion';
 
 interface TaskCardProps {
   task: Task;
@@ -77,10 +78,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-200 hover:shadow-md hover:scale-[1.02] ${
-      task.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 
-      isOverdue() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'
-    }`}>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ scale: 1.02 }}
+      className={`bg-white rounded-xl shadow-sm border-2 transition-all duration-200 hover:shadow-md ${
+        task.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 
+        isOverdue() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'
+      }`}>
       <div className="p-5">
         {/* Priority Badge */}
         <div className="flex items-center justify-between mb-3">
@@ -171,7 +177,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
           onCancel={() => setShowEditModal(false)} 
         />
       )}
-    </div>
+    </motion.div>
   );
 };
 
