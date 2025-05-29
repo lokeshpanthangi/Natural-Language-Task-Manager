@@ -12,24 +12,6 @@ const ensureFutureDate = (date: Date): Date => {
   return date;
 };
 
-// Helper function to format date in a consistent way
-const formatDateForDisplay = (date: Date, timeSpecified: boolean): { formattedDate: string, formattedTime: string | null } => {
-  const formattedDate = date.toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-  
-  // Only return time if it was explicitly specified
-  const formattedTime = timeSpecified ? date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  }) : null;
-  
-  return { formattedDate, formattedTime };
-};
-
 export const parseNaturalLanguage = (input: string): ParsedTask => {
   const text = input.toLowerCase();
   
@@ -83,8 +65,6 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
   ];
 
   let extractedTime = { hour: 17, minute: 0 };
-  let timeSpecified = false; // Track if time was explicitly specified
-  
   for (const pattern of timePatterns) {
     const timeMatch = text.match(pattern);
     if (timeMatch) {
@@ -96,7 +76,6 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
       if (ampm === 'am' && hour === 12) hour = 0;
       
       extractedTime = { hour, minute };
-      timeSpecified = true; // Time was explicitly specified
       break;
     }
   }
@@ -180,21 +159,18 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
     priority = 'P4';
   }
 
-  // Ensure the date is in the future and format it for display
-  dueDate = ensureFutureDate(dueDate);
-  const { formattedDate, formattedTime } = formatDateForDisplay(dueDate, timeSpecified);
+  // Format date information for display
+  const formattedDate = dueDate.toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
   
-  // Determine priority text and reason
-  const priorityText = priority === 'P1' ? 'High' : 
-                      priority === 'P2' ? 'Medium-High' : 
-                      priority === 'P3' ? 'Medium' : 'Low';
-                      
-  let priorityReason = 'Inferred based on task description';
-  if (priority === 'P1') {
-    priorityReason = 'Inferred as high priority due to specific deadline and urgency';
-  } else if (priority === 'P2') {
-    priorityReason = 'Inferred as medium-high priority based on task importance';
-  }
+  const formattedTime = dueDate.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 
   return {
     title: title.trim() || input.trim(),
@@ -203,8 +179,7 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
     priority,
     dueDateFormatted: formattedDate,
     dueTimeFormatted: formattedTime,
-    timeSpecified,
-    priorityText,
-    priorityReason
+    priorityText: priority === 'P1' ? 'High' : priority === 'P2' ? 'Medium-High' : priority === 'P3' ? 'Medium' : 'Low',
+    priorityReason: 'Inferred based on task description and deadline'
   };
 };

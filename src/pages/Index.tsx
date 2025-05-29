@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, Search, Calendar, User, Target } from 'lucide-react';
+import { Plus, Clock, Calendar, User, Flag, Filter, Check } from 'lucide-react';
+import MinimalistLogo from '../components/MinimalistLogo';
 import TaskInput from '../components/TaskInput';
 import TaskList from '../components/TaskList';
 import TaskFilters from '../components/TaskFilters';
@@ -81,9 +81,8 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl flex items-center justify-center">
-                <Target className="w-6 h-6 text-white" />
-              </div>
+              {/* Simple minimalist logo */}
+              <MinimalistLogo size={40} />
               <div>
                 <h1 className="text-xl font-bold text-slate-900">TaskFlow</h1>
                 <p className="text-sm text-slate-600">Natural Language Task Manager</p>
@@ -137,10 +136,10 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Completed</p>
-                <p className="text-2xl font-bold text-emerald-600">{stats.completed}</p>
+                <p className="text-2xl font-bold text-emerald-500">{stats.completed}</p>
               </div>
               <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <Target className="w-5 h-5 text-emerald-600" />
+                <Check className="w-5 h-5 text-emerald-500" />
               </div>
             </div>
           </div>
@@ -149,10 +148,10 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Pending</p>
-                <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
+                <p className="text-2xl font-bold text-amber-500">{stats.pending}</p>
               </div>
               <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                <User className="w-5 h-5 text-amber-600" />
+                <User className="w-5 h-5 text-amber-500" />
               </div>
             </div>
           </div>
@@ -161,10 +160,10 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
+                <p className="text-2xl font-bold text-red-500">{stats.overdue}</p>
               </div>
               <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                <Filter className="w-5 h-5 text-red-600" />
+                <Filter className="w-5 h-5 text-red-500" />
               </div>
             </div>
           </div>

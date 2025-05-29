@@ -1,10 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, User, Calendar, Flag, Brain, AlertCircle } from 'lucide-react';
+import { Send, Sparkles, User, Calendar, Flag, Brain, AlertCircle, Clock } from 'lucide-react';
 import { Task, ParsedTask } from '../types/Task';
 import { parseNaturalLanguage } from '../utils/nlpParser';
-import { OpenAIService, getApiKey, saveApiKey, clearApiKey } from '../utils/openaiService';
-import ApiKeyInput from './ApiKeyInput';
+import { OpenAIService, getApiKey } from '../utils/openaiService';
+
 
 interface TaskInputProps {
   onAddTask: (task: Task) => void;
@@ -15,7 +15,6 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
   const [input, setInput] = useState('');
   const [parsedData, setParsedData] = useState<ParsedTask | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
   const [useAI, setUseAI] = useState(true);
   const [aiError, setAiError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -24,9 +23,6 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
-    // Load API key on component mount
-    const savedKey = getApiKey();
-    setApiKey(savedKey);
   }, []);
 
   useEffect(() => {
@@ -36,9 +32,9 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
       
       const timer = setTimeout(async () => {
         try {
-          if (useAI && apiKey) {
+          if (useAI) {
             // Try OpenAI parsing first
-            const openaiService = new OpenAIService(apiKey);
+            const openaiService = new OpenAIService();
             const aiParsed = await openaiService.parseTaskWithAI(input);
             setParsedData(aiParsed);
           } else {
@@ -63,18 +59,28 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
       setIsProcessing(false);
       setAiError(null);
     }
-  }, [input, useAI, apiKey]);
+  }, [input, useAI]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
     const parsed = parsedData || parseNaturalLanguage(input);
+    
+    // Ensure the dueDate is valid and in the future
+    let dueDate = new Date(parsed.dueDate);
+    const now = new Date();
+    
+    // If the date is in the past, add a year
+    if (dueDate < now) {
+      dueDate.setFullYear(dueDate.getFullYear() + 1);
+    }
+    
     const task: Task = {
       id: Date.now().toString(),
       title: parsed.title,
       assignee: parsed.assignee,
-      dueDate: parsed.dueDate,
+      dueDate: dueDate.toISOString(), // Use the corrected date
       priority: parsed.priority,
       status: 'pending',
       createdAt: new Date().toISOString()
@@ -95,10 +101,7 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
     }
   };
 
-  const handleApiKeySet = (key: string) => {
-    setApiKey(key);
-    saveApiKey(key);
-  };
+
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -112,34 +115,28 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
 
   return (
     <div className="space-y-4">
-      {/* API Key Configuration */}
-      <ApiKeyInput 
-        onApiKeySet={handleApiKeySet}
-        currentKey={apiKey || undefined}
-      />
+
 
       <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center">
-              {apiKey && useAI ? <Brain className="w-4 h-4 text-white" /> : <Sparkles className="w-4 h-4 text-white" />}
+              {useAI ? <Brain className="w-4 h-4 text-white" /> : <Sparkles className="w-4 h-4 text-white" />}
             </div>
             <h3 className="text-lg font-semibold text-slate-900">Create New Task</h3>
           </div>
 
-          {apiKey && (
-            <div className="flex items-center space-x-2">
-              <label className="flex items-center space-x-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={useAI}
-                  onChange={(e) => setUseAI(e.target.checked)}
-                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <span>Use AI</span>
-              </label>
-            </div>
-          )}
+          <div className="flex items-center space-x-2">
+            <label className="flex items-center space-x-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={useAI}
+                onChange={(e) => setUseAI(e.target.checked)}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>Use AI</span>
+            </label>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -149,7 +146,7 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={apiKey ? "Try: 'Write a comprehensive project proposal for the new mobile app, assign to Sarah, make it P1 priority due next Friday 2pm'" : "Try: 'Finish landing page for Aman by 11pm 20th June' or 'Call client Rajeev tomorrow 5pm P1'"}
+              placeholder="Try: 'Write a comprehensive project proposal for the new mobile app, assign to Sarah, make it P1 priority due next Friday 2pm'"
               className="w-full p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none transition-all duration-200 text-lg leading-relaxed"
               rows={3}
             />
@@ -158,7 +155,7 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
                 <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
               </div>
             )}
-            {apiKey && useAI && !isProcessing && (
+            {useAI && !isProcessing && (
               <div className="absolute top-4 right-4">
                 <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center">
                   <Brain className="w-3 h-3 text-emerald-600" />
@@ -182,61 +179,82 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
           {parsedData && (
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 animate-fade-in">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-slate-700">Parsed Task Details:</p>
-                {apiKey && useAI && !aiError && (
+                <p className="text-sm font-medium text-slate-700">🔍 Extracted Task Details:</p>
+                {useAI && !aiError && (
                   <div className="flex items-center space-x-1 text-xs text-emerald-600">
                     <Brain className="w-3 h-3" />
                     <span>AI Enhanced</span>
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+              <div className="space-y-3">
+                <div className="flex items-start space-x-2">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
                     <Sparkles className="w-3 h-3 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Task</p>
-                    <p className="text-sm font-medium text-slate-900 truncate">{parsedData.title}</p>
+                    <p className="text-xs text-slate-500">Task:</p>
+                    <p className="text-sm font-medium text-slate-900">{parsedData.title}</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                <div className="flex items-start space-x-2">
+                  <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mt-0.5">
                     <User className="w-3 h-3 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Assignee</p>
+                    <p className="text-xs text-slate-500">Assignee:</p>
                     <p className="text-sm font-medium text-slate-900">{parsedData.assignee || 'Unassigned'}</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="flex items-start space-x-2">
+                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mt-0.5">
                     <Calendar className="w-3 h-3 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Due Date</p>
+                    <p className="text-xs text-slate-500">Due Date:</p>
                     <p className="text-sm font-medium text-slate-900">
-                      {new Date(parsedData.dueDate).toLocaleDateString('en-US', { 
-                        month: 'short', 
+                      {parsedData.dueDateFormatted || new Date(parsedData.dueDate).toLocaleDateString('en-US', { 
+                        month: 'long', 
                         day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit'
+                        year: 'numeric'
                       })}
                     </p>
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center">
+                {/* Only show time if it was explicitly specified */}
+                {parsedData.timeSpecified === true && parsedData.dueTimeFormatted && (
+                  <div className="flex items-start space-x-2">
+                    <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center mt-0.5">
+                      <Clock className="w-3 h-3 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Due Time:</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {parsedData.dueTimeFormatted}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-start space-x-2">
+                  <div className="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center mt-0.5">
                     <Flag className="w-3 h-3 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500">Priority</p>
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getPriorityColor(parsedData.priority)}`}>
-                      {parsedData.priority}
-                    </span>
+                    <p className="text-xs text-slate-500">Priority:</p>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${getPriorityColor(parsedData.priority)}`}>
+                        {parsedData.priorityText || parsedData.priority}
+                      </span>
+                      {parsedData.priorityReason && (
+                        <span className="text-xs text-slate-500 italic">
+                          ({parsedData.priorityReason})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -23,4 +23,9 @@ export interface ParsedTask {
   assignee: string;
   dueDate: string;
   priority: 'P1' | 'P2' | 'P3' | 'P4';
+  dueDateFormatted?: string;
+  dueTimeFormatted?: string | null;
+  timeSpecified?: boolean;
+  priorityText?: string;
+  priorityReason?: string;
 }
