@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Calendar, User, Flag, Clock, Edit, Trash2, Check } from 'lucide-react';
 import { Task } from '../types/Task';
+import TaskEditModal from './TaskEditModal';
 
 interface TaskCardProps {
   task: Task;
@@ -10,8 +11,7 @@ interface TaskCardProps {
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedTask, setEditedTask] = useState(task);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -62,9 +62,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
     return new Date(task.dueDate) < new Date() && task.status !== 'completed';
   };
 
-  const handleSave = () => {
-    onUpdate(editedTask);
-    setIsEditing(false);
+  const handleSaveTask = (updatedTask: Task) => {
+    onUpdate(updatedTask);
+    setShowEditModal(false);
   };
 
   const handleStatusToggle = () => {
@@ -97,7 +97,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
               {task.status === 'completed' && <Check className="w-3 h-3 text-white" />}
             </button>
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={() => setShowEditModal(true)}
               className="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
             >
               <Edit className="w-3 h-3 text-slate-600" />
@@ -112,22 +112,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
         </div>
 
         {/* Task Title */}
-        {isEditing ? (
-          <input
-            value={editedTask.title}
-            onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
-            className="w-full text-lg font-semibold text-slate-900 bg-transparent border-b border-slate-300 focus:border-emerald-500 outline-none mb-3"
-            onBlur={handleSave}
-            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-            autoFocus
-          />
-        ) : (
-          <h3 className={`text-lg font-semibold mb-3 ${
-            task.status === 'completed' ? 'text-slate-500 line-through' : 'text-slate-900'
-          }`}>
-            {task.title}
-          </h3>
-        )}
+        <h3 className={`text-lg font-semibold mb-3 ${
+          task.status === 'completed' ? 'text-slate-500 line-through' : 'text-slate-900'
+        }`}>
+          {task.title}
+        </h3>
 
         {/* Task Details */}
         <div className="space-y-3">
@@ -173,6 +162,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate, onDelete }) => {
           </div>
         </div>
       </div>
+      
+      {/* Edit Modal */}
+      {showEditModal && (
+        <TaskEditModal 
+          task={task} 
+          onSave={handleSaveTask} 
+          onCancel={() => setShowEditModal(false)} 
+        />
+      )}
     </div>
   );
 };
