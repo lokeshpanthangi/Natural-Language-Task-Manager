@@ -3,9 +3,45 @@ import { ParsedTask } from '../types/Task';
 
 // API key handling functions
 export function getApiKey(): string | null {
-  // Prioritize environment variable
+  // Get the API key directly from the environment variable
   const envKey = import.meta.env.VITE_OPENAI_API_KEY;
-  return envKey || null;
+  
+  // Log the environment variable for debugging
+  console.log('Environment API key available:', !!envKey);
+  console.log('API Key value:', envKey);
+  
+  // Fallback to localStorage for development purposes
+  const localStorageKey = localStorage.getItem('openai_api_key');
+  
+  // Return the API key, prioritizing the environment variable
+  return envKey || localStorageKey || null;
+}
+
+// Helper function to save API key to localStorage
+function saveApiKeyToLocalStorage(key: string): void {
+  localStorage.setItem('openai_api_key', key);
+}
+
+// Verify if the API key is valid
+export async function verifyApiKey(apiKey: string): Promise<boolean> {
+  if (!apiKey || apiKey.trim() === '') {
+    console.error('Empty API key provided');
+    return false;
+  }
+
+  try {
+    const openai = new OpenAI({
+      apiKey: apiKey,
+      dangerouslyAllowBrowser: true
+    });
+    
+    // Make a minimal API call to verify the key
+    await openai.models.list({ limit: 1 });
+    return true;
+  } catch (error) {
+    console.error('API key verification failed:', error);
+    return false;
+  }
 }
 
 interface MultipleTasksResponse {
@@ -16,14 +52,23 @@ export class OpenAIService {
   private openai: OpenAI | null = null;
 
   constructor(apiKey?: string) {
-    // Get API key from environment or passed parameter
+    // Get API key from environment, passed parameter, or localStorage
     const key = apiKey || getApiKey();
     
     if (key) {
-      this.openai = new OpenAI({
-        apiKey: key,
-        dangerouslyAllowBrowser: true
-      });
+      try {
+        this.openai = new OpenAI({
+          apiKey: key,
+          dangerouslyAllowBrowser: true
+        });
+        console.log('OpenAI client initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize OpenAI client:', error);
+        this.openai = null;
+      }
+    } else {
+      console.warn('No OpenAI API key found. Meeting Minutes parsing with AI will not work.');
+      this.openai = null;
     }
   }
 
@@ -34,7 +79,23 @@ export class OpenAIService {
    */
   async parseMultipleTasksWithAI(text: string): Promise<ParsedTask[]> {
     if (!this.openai) {
-      throw new Error('OpenAI API key not configured');
+      console.error('OpenAI client not initialized. Checking API key...');
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+      
+      // Try to initialize with the API key again
+      try {
+        this.openai = new OpenAI({
+          apiKey: apiKey,
+          dangerouslyAllowBrowser: true
+        });
+        console.log('OpenAI client initialized successfully on demand');
+      } catch (initError) {
+        console.error('Failed to initialize OpenAI client on demand:', initError);
+        throw new Error('Failed to initialize OpenAI client: ' + (initError instanceof Error ? initError.message : String(initError)));
+      }
     }
     
     try {
@@ -45,8 +106,9 @@ export class OpenAIService {
       const currentMonth = now.getMonth() + 1; // 0-indexed to 1-indexed
       const currentDay = now.getDate();
       
+      console.log('Making API request to OpenAI...');
       const completion = await this.openai.chat.completions.create({
-        model: "gpt-4", // Using GPT-4 for better task parsing
+        model: "gpt-4-turbo-preview", // Using latest GPT-4 model for better task parsing
         messages: [
           {
             role: "system",
@@ -89,8 +151,8 @@ Example response:
       "dueDate": "2025-06-20T22:00:00.000Z",
       "dueDateFormatted": "June 20, 2025",
       "dueTimeFormatted": "10:00 PM",
-      "priority": "P2",
-      "priorityText": "High",
+      "priority": "P3",
+      "priorityText": "Medium",
       "timeSpecified": true,
       "context": "Focus on mobile responsiveness"
     },
@@ -213,7 +275,7 @@ Example response:
             - dueDateFormatted: Human-readable date (e.g., "20th June 2025")
             - dueTimeFormatted: Human-readable time (e.g., "11:00 PM")
             - priority: One of "P1", "P2", "P3", "P4" (P3 is default, P1 is highest priority)
-            - priorityText: Human-readable priority (e.g., "High", "Medium", "Low")
+            - priorityText: Human-readable priority (e.g., "Urgent", "High", "Medium", "Low")
             - priorityReason: Brief explanation of why this priority was assigned
 
             IMPORTANT DATE HANDLING RULES:
@@ -226,7 +288,7 @@ Example response:
             7. ALWAYS set the dueDate ISO string to include the correct year, month, day, hour, and minute.
 
             Consider these priority guidelines:
-            - P1 (High): Urgent/emergency tasks, ASAP, critical deadlines
+            - P1 (Urgent): Urgent/emergency tasks, ASAP, critical deadlines
             - P2 (Medium-High): Important tasks, high priority
             - P3 (Medium): Normal priority (default)
             - P4 (Low): Low priority, nice to have
@@ -238,9 +300,9 @@ Example response:
               "dueDate": "2025-06-20T23:00:00.000Z",
               "dueDateFormatted": "20th June 2025",
               "dueTimeFormatted": "11:00 PM",
-              "priority": "P2",
-              "priorityText": "High",
-              "priorityReason": "Inferred due to specific deadline and time"
+              "priority": "P3",
+              "priorityText": "Medium",
+              "priorityReason": "Using default priority as no urgency was specified"
             }`
           },
           {
@@ -294,13 +356,22 @@ Example response:
   }
 }
 
-// These functions are kept for backward compatibility
+// These functions are kept for backward compatibility but enhanced for development
 
-// These functions are kept for backward compatibility but won't be used in the main flow
+// Save API key - now saves to localStorage for development purposes
 export const saveApiKey = (key: string): void => {
-  console.warn('API key is now managed through environment variables');
+  if (!key || !key.trim()) {
+    console.warn('Empty API key provided');
+    return;
+  }
+  
+  // Save to localStorage for development purposes
+  saveApiKeyToLocalStorage(key);
+  console.info('API key saved to localStorage for development purposes');
 };
 
+// Clear API key from localStorage
 export const clearApiKey = (): void => {
-  console.warn('API key is now managed through environment variables');
+  localStorage.removeItem('openai_api_key');
+  console.info('API key removed from localStorage');
 };
