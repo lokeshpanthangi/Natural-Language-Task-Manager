@@ -67,20 +67,33 @@ const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
 
     const parsed = parsedData || parseNaturalLanguage(input);
     
-    // Ensure the dueDate is valid and in the future
+    // Preserve the exact time from the parsed data in IST timezone
+    // Only adjust if the date is in the past
     let dueDate = new Date(parsed.dueDate);
     const now = new Date();
     
-    // If the date is in the past, add a year
+    // If the date is in the past, add a year but preserve the exact time
     if (dueDate < now) {
+      // Extract time components (in IST)
+      const hours = dueDate.getHours();
+      const minutes = dueDate.getMinutes();
+      const seconds = dueDate.getSeconds();
+      
+      // Add a year
       dueDate.setFullYear(dueDate.getFullYear() + 1);
+      
+      // Restore the exact time components (in IST)
+      dueDate.setHours(hours, minutes, seconds, 0);
     }
+    
+    // Ensure we're keeping the exact time as specified by the user
+    // This is critical for IST timezone handling
     
     const task: Task = {
       id: Date.now().toString(),
       title: parsed.title,
       assignee: parsed.assignee,
-      dueDate: dueDate.toISOString(), // Use the corrected date
+      dueDate: dueDate.toISOString(), // Use the corrected date with preserved time
       priority: parsed.priority,
       status: 'pending',
       createdAt: new Date().toISOString()

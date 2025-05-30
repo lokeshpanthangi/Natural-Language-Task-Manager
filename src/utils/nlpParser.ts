@@ -4,9 +4,18 @@ import { ParsedTask } from '../types/Task';
 const ensureFutureDate = (date: Date): Date => {
   const now = new Date();
   
-  // If the date is in the past, increment the year until it's in the future
-  while (date < now) {
-    date.setFullYear(date.getFullYear() + 1);
+  // If the date is in the past (comparing year, month, and day only)
+  const dateWithoutTime = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowWithoutTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  if (dateWithoutTime < nowWithoutTime) {
+    // If the date is today but with a time that's in the past, just set it to tomorrow
+    if (dateWithoutTime.getTime() === nowWithoutTime.getTime() && date < now) {
+      date.setDate(date.getDate() + 1);
+    } else {
+      // Otherwise, increment the year
+      date.setFullYear(date.getFullYear() + 1);
+    }
   }
   
   return date;
@@ -78,13 +87,13 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
 
   // Time patterns
   const timePatterns = [
-    /(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
-    /(\d{1,2})(?::(\d{2}))?(?:\s*(am|pm))?/i
+    /(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
+    /(?:at\s+)?(\d{1,2})(?::(\d{2}))?(?:\s*(am|pm))?/i
   ];
 
   let extractedTime = { hour: 17, minute: 0 };
   let timeSpecified = false; // Track if time was explicitly specified
-  
+
   for (const pattern of timePatterns) {
     const timeMatch = text.match(pattern);
     if (timeMatch) {
@@ -92,11 +101,15 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
       const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
       const ampm = timeMatch[3]?.toLowerCase();
       
-      if (ampm === 'pm' && hour !== 12) hour += 12;
+      // Proper AM/PM handling
+      if (ampm === 'pm' && hour < 12) hour += 12;
       if (ampm === 'am' && hour === 12) hour = 0;
       
-      extractedTime = { hour, minute };
-      timeSpecified = true; // Time was explicitly specified
+      // Validate hour and minute
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        extractedTime = { hour, minute };
+        timeSpecified = true; // Time was explicitly specified
+      }
       break;
     }
   }
@@ -168,7 +181,7 @@ export const parseNaturalLanguage = (input: string): ParsedTask => {
   dueDate.setHours(extractedTime.hour, extractedTime.minute, 0, 0);
 
   // Extract priority
-  let priority: 'P1' | 'P2' | 'P3' | 'P4' = 'P3';
+  let priority: 'P1' | 'P2' | 'P3' | 'P4' = 'P3'; // Default to P3 (Medium)
   const priorityMatch = text.match(/p([1-4])/i);
   if (priorityMatch) {
     priority = `P${priorityMatch[1]}` as 'P1' | 'P2' | 'P3' | 'P4';

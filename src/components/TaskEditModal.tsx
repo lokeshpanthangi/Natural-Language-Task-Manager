@@ -35,6 +35,7 @@ const TaskEditModal: React.FC<TaskEditModalProps> = ({ task, onSave, onCancel })
     };
     
     onSave(updatedTask);
+    onCancel(); // Add this line to close the modal after saving
   };
 
   const getPriorityColor = (priority: string) => {

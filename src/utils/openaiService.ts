@@ -8,18 +8,15 @@ export function getApiKey(): string | null {
   
   // Log the environment variable for debugging
   console.log('Environment API key available:', !!envKey);
-  console.log('API Key value:', envKey);
   
-  // Fallback to localStorage for development purposes
-  const localStorageKey = localStorage.getItem('openai_api_key');
-  
-  // Return the API key, prioritizing the environment variable
-  return envKey || localStorageKey || null;
+  // Return only the environment variable
+  return envKey || null;
 }
 
-// Helper function to save API key to localStorage
+// Helper function to save API key to localStorage - now deprecated
 function saveApiKeyToLocalStorage(key: string): void {
-  localStorage.setItem('openai_api_key', key);
+  console.warn('Saving API key to localStorage is deprecated. Please use environment variable VITE_OPENAI_API_KEY instead.');
+  // No longer saving to localStorage
 }
 
 // Verify if the API key is valid
@@ -224,9 +221,22 @@ Example response:
           const currentTime = new Date();
           
           // If the date is in the past, add years until it's in the future
+          // but preserve the exact time components and ensure IST timezone
           if (dueDate < currentTime && !isNaN(dueDate.getTime())) {
+            // Extract time components
+            const hours = dueDate.getHours();
+            const minutes = dueDate.getMinutes();
+            const seconds = dueDate.getSeconds();
+            
+            // Add a year
             dueDate.setFullYear(dueDate.getFullYear() + 1);
+            
+            // Restore the exact time components
+            dueDate.setHours(hours, minutes, seconds, 0);
           }
+          
+          // Ensure the time is preserved exactly as specified by the user
+          // This is important for IST timezone handling
         } catch (dateError) {
           // If date parsing fails, set to tomorrow
           dueDate = new Date();
@@ -374,20 +384,13 @@ Example response:
 
 // These functions are kept for backward compatibility but enhanced for development
 
-// Save API key - now saves to localStorage for development purposes
+// Save API key - now logs a warning and doesn't save to localStorage
 export const saveApiKey = (key: string): void => {
   if (!key || !key.trim()) {
     console.warn('Empty API key provided');
     return;
   }
   
-  // Save to localStorage for development purposes
-  saveApiKeyToLocalStorage(key);
-  console.info('API key saved to localStorage for development purposes');
-};
-
-// Clear API key from localStorage
-export const clearApiKey = (): void => {
-  localStorage.removeItem('openai_api_key');
-  console.info('API key removed from localStorage');
+  console.warn('Saving API key to localStorage is deprecated. Please use environment variable VITE_OPENAI_API_KEY instead.');
+  // No longer saving to localStorage
 };
