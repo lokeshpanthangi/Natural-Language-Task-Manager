@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Send, AlertCircle, Loader2, Info, CheckCircle2, Key, MessageSquare } from 'lucide-react';
+import { 
+  Sparkles, Send, AlertCircle, Loader2, Info, CheckCircle2, Key, MessageSquare,
+  Calendar, Clock, User, Flag, CheckSquare, XCircle, Edit2, Trash2, Save,
+  ArrowUpRight, ArrowDownRight, FileText, ListTodo, CalendarClock
+} from 'lucide-react';
 import { Task, ParsedTask } from '../types/Task';
 import { parseMultipleTasks } from '../utils/meetingMinutesParser';
 import { OpenAIService, getApiKey, saveApiKey, verifyApiKey } from '../utils/openaiService';
@@ -90,6 +94,7 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
         // Save the API key for future use
         saveApiKey(apiKey);
         setKeyVerified(true);
+        setApiConnected(true);
         setShowApiKeyInput(false);
         setAiError(null);
       } else {
@@ -114,68 +119,58 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
     
     setIsProcessing(true);
     setAiError(null);
+    setParsedTasks([]);
+    setShowParsedTasks(false);
     setParsingSuccess(false);
     
     try {
+      let parsedResults: EnhancedParsedTask[] = [];
+      
       if (useAI) {
-        // Use OpenAI GPT-4 to parse meeting minutes
-        // First try with the environment variable key
-        const envKey = getApiKey();
-        console.log('Using API key for parsing:', !!envKey);
-        console.log('Transcript to parse:', transcript.substring(0, 50) + '...');
-        
-        // Create a new OpenAI service instance with the API key
-        const openaiService = new OpenAIService();
-        
+        // Try to use OpenAI API first if enabled
         try {
-          // First try with GPT-4 for best results
-          console.log('Sending request to OpenAI API...');
-          const aiParsed = await openaiService.parseMultipleTasksWithAI(transcript);
-          console.log('Received response from OpenAI API:', aiParsed);
+          console.log('Using OpenAI API for parsing');
+          const apiKey = getApiKey();
           
-          // Set connection status
-          setApiConnected(true);
-          setParsedTasks(aiParsed as EnhancedParsedTask[]);
-          setParsingMethod('gpt4');
-          setParsingSuccess(true);
-        } catch (gpt4Error) {
-          console.warn('GPT-4 parsing failed:', gpt4Error);
-          
-          // Check if the error is related to API key
-          const errorMessage = gpt4Error instanceof Error ? gpt4Error.message : String(gpt4Error);
-          console.error('Error message:', errorMessage);
-          
-          if (errorMessage.includes('API key') || 
-              errorMessage.includes('authentication') || 
-              errorMessage.includes('key') || 
-              errorMessage.includes('auth')) {
-            setApiConnected(false);
-            setAiError('OpenAI API connection issue: ' + errorMessage);
-            setShowApiKeyInput(true);
-            throw gpt4Error; // Re-throw to skip fallback for API key issues
+          if (!apiKey) {
+            throw new Error('API key is required for AI parsing');
           }
           
-          // Fallback to local parsing for other errors
-          const parsed = parseMultipleTasks(transcript);
-          setParsedTasks(parsed as EnhancedParsedTask[]);
+          const openaiService = new OpenAIService(apiKey);
+          const aiParsedTasks = await openaiService.extractTasksFromText(transcript);
+          
+          if (aiParsedTasks && aiParsedTasks.length > 0) {
+            parsedResults = aiParsedTasks;
+            setParsingMethod('gpt4');
+            setApiConnected(true);
+          } else {
+            throw new Error('No tasks were extracted by the AI');
+          }
+        } catch (error) {
+          console.error('OpenAI API error:', error);
+          setAiError(`AI parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}. Falling back to local parsing.`);
+          
+          // Fallback to local parsing
+          parsedResults = parseMultipleTasks(transcript);
           setParsingMethod('local');
-          // Set a warning but don't treat as error since we have a fallback
-          setAiError('GPT-4 parsing unavailable. Using local parser instead.');
         }
       } else {
-        // Use local parser as fallback
-        const parsed = parseMultipleTasks(transcript);
-        setParsedTasks(parsed as EnhancedParsedTask[]);
+        // Use local parsing directly if AI is disabled
+        console.log('Using local parsing');
+        parsedResults = parseMultipleTasks(transcript);
         setParsingMethod('local');
       }
-      setShowParsedTasks(true);
-    } catch (error) {
-      console.error('All parsing methods failed:', error);
-      setAiError(error instanceof Error ? error.message : 'Parsing failed');
       
-      // Create an empty array if all parsing methods fail
-      setParsedTasks([]);
-      setShowParsedTasks(true);
+      if (parsedResults.length > 0) {
+        setParsedTasks(parsedResults);
+        setShowParsedTasks(true);
+        setParsingSuccess(true);
+      } else {
+        setAiError('No tasks could be extracted from the provided text. Please try with more specific task descriptions.');
+      }
+    } catch (error) {
+      console.error('Parsing error:', error);
+      setAiError(`Failed to parse tasks: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -185,32 +180,24 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
     if (parsedTasks.length === 0) return;
     
     const now = new Date();
-    const tasks: Task[] = parsedTasks.map(parsedTask => {
-      // Ensure the dueDate is valid and in the future
-      let dueDate = new Date(parsedTask.dueDate);
-      
-      // If the date is invalid, set it to tomorrow
-      if (isNaN(dueDate.getTime())) {
-        dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 1);
-      }
-      
+    const tasks: Task[] = parsedTasks.map((parsedTask, index) => {
       // Create description with context if available
       const description = parsedTask.context 
         ? `${parsedTask.title}\n\nContext: ${parsedTask.context}` 
         : parsedTask.title;
-      
+
       return {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-        title: description,
+        id: `task-${Date.now()}-${index}`,
+        title: parsedTask.title,
+        description,
         assignee: parsedTask.assignee,
-        dueDate: dueDate.toISOString(),
+        dueDate: parsedTask.dueDate,
         priority: parsedTask.priority,
         status: 'pending',
         createdAt: now.toISOString()
       };
     });
-    
+
     onAddTasks(tasks);
     setTranscript('');
     setParsedTasks([]);
@@ -221,21 +208,51 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
   const handleRemoveTask = (index: number) => {
     setParsedTasks(prev => prev.filter((_, i) => i !== index));
   };
-  
+
   const handleUpdateTask = (index: number, updatedTask: EnhancedParsedTask) => {
     setParsedTasks(prev => prev.map((task, i) => i === index ? updatedTask : task));
   };
-  
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'P1': return 'text-red-600 bg-red-100';
-      case 'P2': return 'text-orange-600 bg-orange-100';
-      case 'P3': return 'text-blue-600 bg-blue-100';
-      case 'P4': return 'text-green-600 bg-green-100';
-      default: return 'text-blue-600 bg-blue-100';
+      case 'P1': return {
+        bg: 'bg-red-100 hover:bg-red-200', 
+        text: 'text-red-700',
+        border: 'border-red-300',
+        icon: <ArrowUpRight className="w-3.5 h-3.5 mr-1" />,
+        label: 'Urgent'
+      };
+      case 'P2': return {
+        bg: 'bg-orange-100 hover:bg-orange-200', 
+        text: 'text-orange-700',
+        border: 'border-orange-300',
+        icon: <ArrowUpRight className="w-3.5 h-3.5 mr-1" />,
+        label: 'High'
+      };
+      case 'P3': return {
+        bg: 'bg-blue-100 hover:bg-blue-200', 
+        text: 'text-blue-700',
+        border: 'border-blue-300',
+        icon: <Flag className="w-3.5 h-3.5 mr-1" />,
+        label: 'Medium'
+      };
+      case 'P4': return {
+        bg: 'bg-green-100 hover:bg-green-200', 
+        text: 'text-green-700',
+        border: 'border-green-300',
+        icon: <ArrowDownRight className="w-3.5 h-3.5 mr-1" />,
+        label: 'Low'
+      };
+      default: return {
+        bg: 'bg-blue-100 hover:bg-blue-200', 
+        text: 'text-blue-700',
+        border: 'border-blue-300',
+        icon: <Flag className="w-3.5 h-3.5 mr-1" />,
+        label: 'Medium'
+      };
     }
   };
-  
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
       <div className="flex items-center justify-between mb-4">
@@ -243,7 +260,7 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
           <MessageSquare className="w-5 h-5 mr-2 text-purple-500" />
           Meeting Minutes Parser
         </h2>
-        
+
         {connectionChecked && (
           <div className="flex items-center">
             <span className="text-sm mr-2">
@@ -286,12 +303,13 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Enter your OpenAI API key"
-              className="flex-1 px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-grow px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+            
             <button
               onClick={handleVerifyApiKey}
               disabled={isVerifyingKey || !apiKey.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               {isVerifyingKey ? (
                 <>
@@ -299,7 +317,10 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
                   Verifying...
                 </>
               ) : (
-                'Verify & Save'
+                <>
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Verify Key
+                </>
               )}
             </button>
           </div>
@@ -333,251 +354,257 @@ const MeetingMinutesParser: React.FC<MeetingMinutesParserProps> = ({ onAddTasks,
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-lg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900">AI Meeting Minutes Parser</h2>
+        <div className="mb-4">
+          <label htmlFor="transcript" className="block text-sm font-medium text-slate-700 mb-1">
+            Paste your meeting minutes or conversation transcript:
+          </label>
+          <textarea
+            id="transcript"
+            value={transcript}
+            onChange={handleTranscriptChange}
+            rows={8}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Paste your meeting transcript here... The AI will extract tasks, assignees, due dates, and priorities."
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Cancel
+            </button>
+            
+            <motion.button
+              onClick={handleParse}
+              disabled={isProcessing || !transcript.trim()}
+              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium rounded-md hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {useAI ? (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  ) : (
+                    <FileText className="w-4 h-4 mr-2" />
+                  )}
+                  {useAI ? 'Extract Tasks with AI' : 'Extract Tasks'}
+                </>
+              )}
+            </motion.button>
           </div>
           
           <div className="flex items-center">
-            <label className="inline-flex items-center cursor-pointer">
-              <span className="mr-2 text-sm text-slate-600">Use AI</span>
+            <label htmlFor="use-ai" className="flex items-center cursor-pointer">
               <div className="relative">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
+                <input
+                  id="use-ai"
+                  type="checkbox"
+                  className="sr-only"
                   checked={useAI}
-                  onChange={(e) => {
-                    const newValue = e.target.checked;
-                    setUseAI(newValue);
-                    // If turning on AI and no API key, show the input
-                    if (newValue && !getApiKey() && !keyVerified) {
-                      setShowApiKeyInput(true);
+                  onChange={() => {
+                    setUseAI(!useAI);
+                    if (!useAI) {
+                      // If turning AI back on, check if we need to show API key input
+                      const hasKey = !!getApiKey();
+                      setShowApiKeyInput(!hasKey);
+                    } else {
+                      setShowApiKeyInput(false);
                     }
                   }}
                 />
-                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-emerald-500 peer-checked:to-teal-500"></div>
+                <div className={`block w-10 h-6 rounded-full transition-colors duration-200 ${useAI ? 'bg-indigo-600' : 'bg-slate-300'}`}></div>
+                <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${useAI ? 'transform translate-x-4' : ''}`}></div>
               </div>
+              <div className="ml-3 text-sm font-medium text-slate-700">Use AI (GPT-4)</div>
             </label>
           </div>
         </div>
         
-        {parsingSuccess && (
-          <motion.div 
-            className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start space-x-2"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            transition={{ duration: 0.3 }}
-          >
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-emerald-800">Tasks Extracted Successfully</p>
-              <p className="text-xs text-emerald-600">Using {parsingMethod === 'gpt4' ? 'GPT-4 AI' : 'Local Parser'} to analyze your meeting minutes.</p>
-            </div>
-          </motion.div>
-        )}
-        
-        {aiError && (
-          <motion.div 
-            className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start space-x-2"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            transition={{ duration: 0.3 }}
-          >
-            <Info className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800">AI Processing Note</p>
-              <p className="text-xs text-amber-600">{aiError}</p>
-              {parsingMethod === 'local' && (
-                <p className="text-xs text-slate-600 mt-1">Using local parsing instead.</p>
-              )}
-            </div>
-          </motion.div>
-        )}
-        
-        <form onSubmit={(e) => { e.preventDefault(); handleParse(); }}>
-          <div className="mb-4">
-            <textarea
-              value={transcript}
-              onChange={handleTranscriptChange}
-              placeholder="Paste your meeting transcript here... For example: 'Aman you take the landing page by 10pm tomorrow. Rajeev you take care of client follow-up by Wednesday. Shreya please review the marketing deck tonight.'"
-              className="w-full min-h-[200px] p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y text-slate-700"
-              disabled={isProcessing}
-            />
+        {aiError && !showApiKeyInput && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-600 flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              {aiError}
+            </p>
           </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-500">
-              <p>Paste meeting minutes to automatically extract tasks, assignees, and deadlines.</p>
-              {useAI && (
-                <p className="text-xs mt-1 text-indigo-600">Using GPT-4 to intelligently extract tasks from conversational text.</p>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <motion.button
-                type="submit"
-                disabled={!transcript.trim() || isProcessing}
-                className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Parse Meeting Minutes
-                  </>
-                )}
-              </motion.button>
-            </div>
-          </div>
-        </form>
+        )}
       </motion.div>
       
       {/* Parsed Tasks Preview */}
       <AnimatePresence>
         {showParsedTasks && (
           <motion.div 
-            className="bg-white rounded-xl shadow-lg border border-slate-200 p-6"
+            className="bg-gradient-to-br from-white to-slate-50 rounded-xl shadow-lg border border-slate-200 p-6 mt-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">
-                Extracted Tasks ({parsedTasks.length})
-              </h3>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md mr-3">
+                  <ListTodo className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center">
+                    Extracted Tasks 
+                    <span className="ml-2 inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-sm font-semibold">
+                      {parsedTasks.length}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {parsingMethod === 'gpt4' ? 'Extracted using AI' : 'Extracted using local parser'}
+                  </p>
+                </div>
+              </div>
               
               <div className="flex items-center space-x-2">
                 <motion.button
                   onClick={handleAddAllTasks}
                   disabled={parsedTasks.length === 0}
-                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  whileHover={{ scale: 1.05 }}
+                  className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-medium rounded-lg hover:from-emerald-600 hover:to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                  whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Send className="w-3 h-3 mr-2" />
+                  <Save className="w-4 h-4 mr-2" />
                   Add All Tasks
                 </motion.button>
               </div>
             </div>
             
             {parsedTasks.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-slate-500">No tasks could be extracted from the transcript.</p>
-                <p className="text-sm text-slate-400 mt-2">Try adding more context or specific task assignments.</p>
+              <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-slate-400" />
+                </div>
+                <p className="text-slate-600 font-medium">No tasks could be extracted from the transcript.</p>
+                <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">Try adding more context or specific task assignments with clear deadlines and assignees.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {parsedTasks.map((task, index) => (
-                  <motion.div 
-                    key={index} 
-                    className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.05 }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-3 flex-grow">
-                        <div className="flex items-center mb-4 space-x-2">
-                          <input
-                            type="text"
-                            value={task.title}
-                            onChange={(e) => handleUpdateTask(index, { ...task, title: e.target.value })}
-                            className="text-slate-900 font-medium w-full border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none px-1 py-0.5"
-                          />
-                        </div>
-                        
-                        {/* Task Context (if available) */}
-                        {task.context && (
-                          <div className="bg-slate-50 p-2 rounded-md border border-slate-200">
-                            <p className="text-xs text-slate-500 mb-1">Additional Context:</p>
-                            <p className="text-sm text-slate-700">{task.context}</p>
-                          </div>
-                        )}
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <p className="text-xs text-slate-500">Assignee:</p>
+              <div className="space-y-6">
+                {parsedTasks.map((task, index) => {
+                  const priorityStyle = getPriorityColor(task.priority);
+                  return (
+                    <motion.div 
+                      key={index} 
+                      className={`border ${priorityStyle.border} rounded-xl p-5 hover:shadow-lg transition-all duration-300 bg-white`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                      whileHover={{ y: -2 }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-4 flex-grow">
+                          <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
+                            <CheckSquare className="w-5 h-5 text-indigo-500 flex-shrink-0" />
                             <input
                               type="text"
-                              value={task.assignee}
-                              onChange={(e) => handleUpdateTask(index, { ...task, assignee: e.target.value })}
-                              className="text-sm text-slate-700 w-full border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none px-1 py-0.5"
-                              placeholder="Unassigned"
+                              value={task.title}
+                              onChange={(e) => handleUpdateTask(index, { ...task, title: e.target.value })}
+                              className="text-slate-800 font-medium w-full border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-1 text-base"
                             />
                           </div>
                           
-                          <div>
-                            <p className="text-xs text-slate-500">Due Date:</p>
-                            <input
-                              type="datetime-local"
-                              value={new Date(task.dueDate).toISOString().slice(0, 16)}
-                              onChange={(e) => {
-                                const date = new Date(e.target.value);
-                                handleUpdateTask(index, { 
-                                  ...task, 
-                                  dueDate: date.toISOString(),
-                                  dueDateFormatted: date.toLocaleDateString('en-US', { 
-                                    month: 'long', 
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })
-                                });
-                              }}
-                              className="text-sm text-slate-700 w-full border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none px-1 py-0.5"
-                            />
-                          </div>
+                          {/* Task Context (if available) */}
+                          {task.context && (
+                            <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                              <p className="text-xs font-medium text-indigo-700 mb-1 flex items-center">
+                                <Info className="w-3 h-3 mr-1" /> Additional Context:
+                              </p>
+                              <p className="text-sm text-indigo-900">{task.context}</p>
+                            </div>
+                          )}
                           
-                          <div>
-                            <p className="text-xs text-slate-500">Priority:</p>
-                            <select
-                              value={task.priority}
-                              onChange={(e) => handleUpdateTask(index, { ...task, priority: e.target.value as any })}
-                              className="text-sm w-full border-b border-transparent hover:border-slate-300 focus:border-emerald-500 focus:outline-none px-1 py-0.5 bg-transparent"
-                            >
-                              <option value="P1">P1 (Urgent)</option>
-                              <option value="P2">P2 (High)</option>
-                              <option value="P3">P3 (Medium)</option>
-                              <option value="P4">P4 (Low)</option>
-                            </select>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 hover:border-indigo-300 transition-colors duration-300">
+                              <p className="text-xs font-medium text-slate-600 mb-1 flex items-center">
+                                <User className="w-3.5 h-3.5 mr-1.5 text-indigo-500" /> Assignee:
+                              </p>
+                              <div className="flex items-center">
+                                <input
+                                  type="text"
+                                  value={task.assignee}
+                                  onChange={(e) => handleUpdateTask(index, { ...task, assignee: e.target.value })}
+                                  className="text-sm text-slate-800 w-full border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none px-1 py-1 bg-transparent"
+                                  placeholder="Unassigned"
+                                />
+                                <Edit2 className="w-3.5 h-3.5 text-slate-400 ml-1" />
+                              </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 hover:border-indigo-300 transition-colors duration-300">
+                              <p className="text-xs font-medium text-slate-600 mb-1 flex items-center">
+                                <CalendarClock className="w-3.5 h-3.5 mr-1.5 text-indigo-500" /> Due Date:
+                              </p>
+                              <div className="flex items-center">
+                                <input
+                                  type="datetime-local"
+                                  value={new Date(task.dueDate).toISOString().slice(0, 16)}
+                                  onChange={(e) => {
+                                    const date = new Date(e.target.value);
+                                    handleUpdateTask(index, { 
+                                      ...task, 
+                                      dueDate: date.toISOString(),
+                                      dueDateFormatted: date.toLocaleDateString('en-US', { 
+                                        month: 'long', 
+                                        day: 'numeric',
+                                        year: 'numeric'
+                                      })
+                                    });
+                                  }}
+                                  className="text-sm text-slate-800 w-full border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none px-1 py-1 bg-transparent"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 hover:border-indigo-300 transition-colors duration-300">
+                              <p className="text-xs font-medium text-slate-600 mb-1 flex items-center">
+                                <Flag className="w-3.5 h-3.5 mr-1.5 text-indigo-500" /> Priority:
+                              </p>
+                              <select
+                                value={task.priority}
+                                onChange={(e) => handleUpdateTask(index, { ...task, priority: e.target.value as any })}
+                                className="text-sm w-full border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 focus:outline-none px-1 py-1 bg-transparent"
+                              >
+                                <option value="P1">P1 (Urgent)</option>
+                                <option value="P2">P2 (High)</option>
+                                <option value="P3">P3 (Medium)</option>
+                                <option value="P4">P4 (Low)</option>
+                              </select>
+                            </div>
                           </div>
                         </div>
+                        
+                        <div className="flex flex-col items-end space-y-2 ml-4">
+                          <motion.span 
+                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${priorityStyle.bg} ${priorityStyle.text} shadow-sm`}
+                            whileHover={{ scale: 1.05 }}
+                          >
+                            {priorityStyle.icon}
+                            {task.priority} - {priorityStyle.label}
+                          </motion.span>
+                          <motion.button
+                            onClick={() => handleRemoveTask(index)}
+                            className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center hover:border-red-500 hover:bg-red-50 transition-all duration-200 shadow-sm"
+                            whileHover={{ scale: 1.1, rotate: 90 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Trash2 className="h-4 w-4 text-slate-500 hover:text-red-500" />
+                          </motion.button>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-2 ml-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                          {task.priority}
-                        </span>
-                        <motion.button
-                          onClick={() => handleRemoveTask(index)}
-                          className="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center hover:border-red-500 hover:bg-red-50 transition-all duration-200"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </motion.button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </motion.div>

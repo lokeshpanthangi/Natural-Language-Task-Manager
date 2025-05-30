@@ -73,6 +73,22 @@ export class OpenAIService {
   }
 
   /**
+   * Extracts tasks from meeting minutes text
+   * @param text Meeting minutes text
+   * @returns Array of parsed tasks with context
+   */
+  async extractTasksFromText(text: string): Promise<ParsedTask[]> {
+    try {
+      console.log('Extracting tasks from text using OpenAI...');
+      return await this.parseMultipleTasksWithAI(text);
+    } catch (error) {
+      console.error('Error extracting tasks with AI:', error);
+      // Fall back to local parsing
+      return this.fallbackParseMultipleTasks(text);
+    }
+  }
+
+  /**
    * Parses multiple tasks from meeting minutes using OpenAI GPT-4
    * @param text Meeting minutes text
    * @returns Array of parsed tasks
