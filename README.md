@@ -1,12 +1,30 @@
-# TaskFlow - Natural Language Task Manager
+# TaskFlow - Natural Language Task Manager 📝
 
-![TaskFlow Logo](https://github.com/lokeshpanthangi/Natural-Language-Task-Manager/blob/main/public/taskflow-logo.png)
-
-## Overview
+## Overview 🌟
 
 TaskFlow is a modern task management application that uses natural language processing to intelligently parse and organize your tasks. Simply type your task in plain English, and TaskFlow will automatically extract key information like due dates, assignees, and priority levels.
 
-## Features
+## Screenshots 📸
+
+### Single Task Creation with Natural Language Processing
+
+TaskFlow allows you to create tasks effortlessly by typing in plain English. For example, inputting "Call client Rajeev tomorrow 5pm" will automatically parse the task title, identify the due date and time, and even suggest a priority if not explicitly mentioned.
+
+![Task Creation](./screenshots/task1.png)
+
+### Meeting Minutes Parser for Multiple Tasks
+
+Efficiently convert your meeting notes or conversation transcripts into actionable tasks. Paste your text, and TaskFlow's parser (either AI-powered or local) will extract multiple tasks, assignees, due dates, and priorities, ready to be added to your board.
+
+![Meeting Minutes Parser](./screenshots/task2.png)
+
+### Task Dashboard for Easy Management
+
+Get a clear overview of all your tasks on the dashboard. Tasks are neatly organized by status (Pending, In Progress, Completed), and you can quickly see key details like assignee, due date, and priority. Filters and search functionality help you find specific tasks with ease.
+
+![Task Dashboard](./screenshots/task3.png)
+
+## Features ✨
 
 - **Natural Language Processing**: Enter tasks in plain English (e.g., "Finish the report for Sarah by next Friday at 3pm with high priority").
 - **AI-Powered Task Parsing**: Uses OpenAI's GPT model to intelligently extract task details.
@@ -21,7 +39,7 @@ TaskFlow is a modern task management application that uses natural language proc
 - **Local Storage**: Tasks are saved in your browser's local storage.
 - **Modern UI**: Clean design with smooth animations and transitions.
 
-## Technology Stack
+## Technology Stack 💻
 
 - **Frontend**: React with TypeScript
 - **Styling**: TailwindCSS for responsive design
@@ -30,7 +48,7 @@ TaskFlow is a modern task management application that uses natural language proc
 - **Routing**: React Router
 - **Build Tool**: Vite
 
-## Getting Started
+## Getting Started 🚀
 
 ### Prerequisites
 
@@ -53,7 +71,7 @@ npm install
 npm run dev
 ```
 
-### OpenAI API Configuration (Optional)
+### OpenAI API Configuration (Optional) 🔑
 
 TaskFlow can use OpenAI's GPT model for enhanced natural language processing. To enable this feature:
 
@@ -62,7 +80,7 @@ TaskFlow can use OpenAI's GPT model for enhanced natural language processing. To
 
 If no API key is provided, TaskFlow will automatically fall back to its built-in NLP parser.
 
-## Usage
+## Usage 🛠️
 
 ### Single Task Entry
 1. Click the "Add Task" button to create a new task
@@ -78,7 +96,7 @@ If no API key is provided, TaskFlow will automatically fall back to its built-in
 4. Review and edit the extracted tasks as needed
 5. Click "Add All Tasks" to add them to your task board
 
-## Key Components
+## Key Components 🧩
 
 - **TaskInput**: Handles natural language input and parsing for single tasks
 - **MeetingMinutesParser**: Extracts multiple tasks from meeting transcripts
@@ -90,8 +108,7 @@ If no API key is provided, TaskFlow will automatically fall back to its built-in
 - **Meeting Minutes Parser**: Extracts tasks from conversational text
 - **OpenAI Service**: Integration with OpenAI API for enhanced parsing
 
-
-## Acknowledgments
+## Acknowledgments 🙏
 
 - [OpenAI](https://openai.com/) for their powerful language models
 - [React](https://reactjs.org/) and [Vite](https://vitejs.dev/) for the frontend framework
@@ -101,7 +118,7 @@ If no API key is provided, TaskFlow will automatically fall back to its built-in
 
 Created by [Lokesh Panthangi](https://github.com/lokeshpanthangi)
 
-## What technologies are used for this project?
+## What technologies are used for this project? 💡
 
 This project is built with:
 
@@ -110,3 +127,6 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+
+
+Made with ❤️ by Nani
